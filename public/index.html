@@ -75,6 +75,13 @@ label{font-size:13px;font-weight:700;display:grid;gap:4px}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
 .site{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;gap:10px;align-content:start;position:relative}
 .site-top{display:flex;gap:10px;align-items:center}
+.site-text{flex:1;min-width:0}
+.site.dragging{opacity:.55;outline:2px dashed var(--accent);outline-offset:2px}
+body.is-dragging{user-select:none;-webkit-user-select:none;cursor:grabbing}
+@media (hover:hover){.site{cursor:grab}}
+.handle{flex:none;border:none;background:transparent;color:var(--muted);padding:6px;border-radius:8px;cursor:grab;touch-action:none;line-height:0}
+.handle:hover{color:var(--ink);background:var(--paper)}
+.handle svg{width:16px;height:16px;display:block}
 .mark{width:44px;height:44px;flex:none;border-radius:10px;display:grid;place-items:center;color:#fff;font-family:var(--display);font-size:18px}
 .site-name{font-weight:700;font-size:16px;line-height:1.3;overflow-wrap:anywhere}
 .site-meta{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
@@ -83,8 +90,9 @@ label{font-size:13px;font-weight:700;display:grid;gap:4px}
 .pricetag.soon{background:transparent;color:var(--soon);border:1.5px solid var(--soon);clip-path:none;padding:1px 8px;border-radius:6px}
 .memo{font-size:13px;color:var(--muted);background:var(--paper);border-radius:8px;padding:6px 10px;min-height:2.2em;white-space:pre-wrap;overflow-wrap:anywhere}
 .memo.empty{font-style:normal;opacity:.7}
-.site-actions{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
-.site-actions .btn.primary{flex:1;justify-content:center}
+.site-actions{display:grid;gap:4px}
+.site-actions .btn.primary{width:100%;justify-content:center;padding:9px 12px}
+.site-actions .edit{justify-self:end}
 .add-card{border:2px dashed var(--line);background:transparent;border-radius:12px;min-height:150px;display:grid;place-items:center;color:var(--muted);font-weight:700}
 .add-card:hover{border-color:var(--ink);color:var(--ink);background:transparent}
 
@@ -125,6 +133,22 @@ details.panel summary{cursor:pointer;font-weight:700}
 dialog{border:none;border-radius:14px;padding:0;max-width:min(520px,calc(100vw - 32px));width:100%;background:var(--card);color:var(--ink)}
 dialog::backdrop{background:rgba(10,14,22,.5)}
 dialog form{padding:20px;display:grid;gap:12px}
+.pick{padding:20px 20px 0;display:grid;gap:10px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{font-size:12.5px;font-weight:500;padding:3px 10px;border-radius:999px;border:1px solid var(--line)}
+.chips button[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.chips-label{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:-4px}
+.pick-list{list-style:none;margin:0;padding:0;max-height:min(320px,38vh);overflow-y:auto;border:1px solid var(--line);border-radius:10px}
+.pick-list li{display:flex;align-items:center;gap:10px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.pick-list li:last-child{border-bottom:none}
+.pick-list .mark{width:30px;height:30px;font-size:13px;border-radius:8px}
+.pick-name{font-weight:700;font-size:14px;line-height:1.3;overflow-wrap:anywhere}
+.pick-meta{font-size:11.5px;color:var(--muted);overflow-wrap:anywhere}
+.pick-list button{flex:none;font-size:12.5px;padding:4px 10px}
+.pick-list button:disabled{border-color:var(--line);color:var(--muted);cursor:default;background:transparent}
+.pick-empty{padding:14px;font-size:13px;color:var(--muted)}
+.pick-foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:0 20px 20px;margin-top:12px}
+[hidden]{display:none !important}
 dialog h3{font-family:var(--display);font-weight:400;margin:0;font-size:18px}
 .swatches{display:flex;gap:6px;flex-wrap:wrap}
 .swatches label{display:block}
@@ -150,7 +174,7 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
   <section aria-labelledby="h-sites">
     <div class="sec-head">
       <h2 id="h-sites">マイサイト</h2>
-      <p class="note">データはこのブラウザの中だけに保存されます（アカウント不要）</p>
+      <p class="note">カードはドラッグで並べ替えられます。データはこのブラウザの中だけに保存されます（アカウント不要）</p>
     </div>
     <div class="grid" id="sites"></div>
   </section>
@@ -207,7 +231,24 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
   <footer><a href="https://hashigo-map.com/">はしごマップ</a>のサイトです ・ <a href="about.html">このサイトについて</a> ／ 検索リンクは各サイトの検索ページを開くだけで、価格などは取得していません。Paul Smith と LADER の検索URLは推測のため要確認。</footer>
 </div>
 
-<dialog id="siteDialog">
+<dialog id="siteDialog" aria-labelledby="siteDialogTitle">
+  <div id="pickPane">
+    <div class="pick">
+      <h3 id="pickTitle">サイトを追加</h3>
+      <label for="pickQ">サイト名で探す<input id="pickQ" type="search" autocomplete="off" placeholder="例：ユニクロ、amazon、セザンヌ"></label>
+      <div class="chips-label">国</div>
+      <div class="chips" id="pickCountry"></div>
+      <div class="chips-label">カテゴリー</div>
+      <div class="chips" id="pickCat"></div>
+      <p class="note" id="pickCount" aria-live="polite"></p>
+      <ul class="pick-list" id="pickList"></ul>
+      <p class="note">候補は公式ストアと大手の通販サイトに限っています。海外サイトは、日本への発送ができるかを各サイトで確認してください。</p>
+    </div>
+    <div class="pick-foot">
+      <button type="button" id="pickManual">候補にないサイトを自分で入力</button>
+      <button type="button" class="primary" id="pickClose">閉じる</button>
+    </div>
+  </div>
   <form id="siteForm" method="dialog">
     <h3 id="siteDialogTitle">サイトを追加</h3>
     <label for="f-name">サイト名<input id="f-name" required></label>
@@ -228,6 +269,7 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
 
 <div class="toast" id="toast" role="status"></div>
 
+<script src="catalog.js"></script>
 <script>
 (function(){
   const KEY = 'hashigo-shop-demo-v1';
@@ -304,18 +346,17 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
         ? `<span class="pricetag">${esc(x.title)} 開催中・あと${daysTo(x.end)}日</span>`
         : `<span class="pricetag soon">${esc(x.title)} ${daysTo(x.start)}日後から</span>`).join('');
       const initial = esc((s.name||'?').trim().charAt(0).toUpperCase());
-      return `<article class="site">
+      return `<article class="site" data-id="${esc(s.id)}">
         <div class="site-top">
           <div class="mark" style="background:${esc(s.color||COLORS[0])}" aria-hidden="true">${initial}</div>
-          <div><div class="site-name">${esc(s.name)}</div><div class="site-meta">${esc(s.cat||'')}${s.cat?'・':''}${esc(host(s.url))}</div></div>
+          <div class="site-text"><div class="site-name">${esc(s.name)}</div><div class="site-meta">${esc(s.cat||'')}${s.cat?'・':''}${esc(host(s.url))}</div></div>
+          <button type="button" class="handle" data-handle aria-label="${esc(s.name)}を並べ替え（ドラッグ、または矢印キー）" title="ドラッグで並べ替え"><svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><circle cx="5" cy="3" r="1.6"/><circle cx="11" cy="3" r="1.6"/><circle cx="5" cy="8" r="1.6"/><circle cx="11" cy="8" r="1.6"/><circle cx="5" cy="13" r="1.6"/><circle cx="11" cy="13" r="1.6"/></svg></button>
         </div>
         ${tags?`<div class="tagline">${tags}</div>`:''}
         <div class="memo${s.memo?'':' empty'}">${s.memo?esc(s.memo):'メモなし（編集から送料無料ラインなどを残せます）'}</div>
         <div class="site-actions">
-          <a class="btn primary" href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener">サイトを開く ↗</a>
-          <button type="button" data-edit="${esc(s.id)}">編集</button>
-          <button type="button" class="ghost" data-move="${i}" data-dir="-1" aria-label="${esc(s.name)}を前へ" ${i===0?'disabled':''}>←</button>
-          <button type="button" class="ghost" data-move="${i}" data-dir="1" aria-label="${esc(s.name)}を後ろへ" ${i===state.sites.length-1?'disabled':''}>→</button>
+          <a class="btn primary" href="${esc(safeUrl(s.url))}" target="_blank" rel="noopener" draggable="false">サイトを開く ↗</a>
+          <button type="button" class="ghost edit" data-edit="${esc(s.id)}">編集</button>
         </div>
       </article>`;
     }).join('');
@@ -357,7 +398,50 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
   // サイト編集ダイアログ
   const dlg=$('#siteDialog'); let editing=null;
   $('#swatches').innerHTML = COLORS.map((c,i)=>`<label for="c-${i}"><input type="radio" name="color" id="c-${i}" value="${c}"><span style="background:${c}"></span></label>`).join('');
+  const CATALOG = window.SHOP_CATALOG || [];
+  const COUNTRIES = [['all','すべて'],['jp','日本'],['kr','韓国'],['us','アメリカ'],['fr','フランス'],['it','イタリア']];
+  const CATS = [['all','すべて'],['apparel','アパレル'],['goods','雑貨・インテリア'],['general','総合'],['department','百貨店'],['electronics','家電'],['beauty','コスメ'],['food','食品'],['sports','スポーツ・アウトドア'],['books','本・音楽'],['resale','フリマ・中古']];
+  const label = (list,k)=>(list.find(x=>x[0]===k)||[,k])[1];
+  const norm = s=>String(s||'').normalize('NFKC').toLowerCase().replace(/[\u30a1-\u30f6]/g,c=>String.fromCharCode(c.charCodeAt(0)-0x60)).replace(/[\s・.'’&!！-]/g,'');
+  const hostKey = u=>host(u).toLowerCase();
+  let pick={q:'',c:'all',g:'all'};
+  function chips(el,list,key){
+    el.innerHTML=list.map(([k,t])=>`<button type="button" data-k="${k}" aria-pressed="${pick[key]===k}">${t}</button>`).join('');
+  }
+  function renderPick(){
+    chips($('#pickCountry'),COUNTRIES,'c'); chips($('#pickCat'),CATS,'g');
+    const q=norm(pick.q);
+    const have=new Set(state.sites.map(s=>hostKey(s.url)));
+    const list=CATALOG.filter(x=>(pick.c==='all'||x.c===pick.c)&&(pick.g==='all'||x.g.includes(pick.g))&&(!q||norm(x.n+' '+(x.k||'')+' '+host(x.u)).includes(q)));
+    $('#pickCount').textContent = `${list.length}件の候補`;
+    $('#pickList').innerHTML = list.length ? list.map(x=>{
+      const i=CATALOG.indexOf(x); const added=have.has(hostKey(x.u));
+      return `<li><div class="mark" style="background:${COLORS[i%COLORS.length]}" aria-hidden="true">${esc(x.n.charAt(0).toUpperCase())}</div>
+        <div style="flex:1;min-width:0"><div class="pick-name">${esc(x.n)}</div><div class="pick-meta">${label(COUNTRIES,x.c)}・${x.g.map(g=>label(CATS,g)).join('／')}・${esc(host(x.u))}</div></div>
+        <button type="button" data-add="${i}" ${added?'disabled':''} aria-label="${esc(x.n)}を${added?'追加済み':'追加'}">${added?'追加済み':'追加'}</button></li>`;
+    }).join('') : `<li class="pick-empty">候補が見つかりません。下の「候補にないサイトを自分で入力」から追加できます。</li>`;
+  }
+  $('#pickQ').addEventListener('input',e=>{ pick.q=e.target.value; renderPick(); });
+  $('#pickCountry').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; pick.c=b.dataset.k; renderPick(); });
+  $('#pickCat').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; pick.g=b.dataset.k; renderPick(); });
+  $('#pickList').addEventListener('click',e=>{
+    const b=e.target.closest('button[data-add]'); if(!b||b.disabled) return;
+    const i=+b.dataset.add, x=CATALOG[i];
+    const s={id:uid(),name:x.n,url:x.u,cat:x.g.map(g=>label(CATS,g)).join('・'),search:x.s||'',memo:'',color:COLORS[i%COLORS.length]};
+    state.sites.push(s); if(checked&&s.search) checked.add(s.id);
+    save(); renderAll(); renderPick(); toast(`${x.n} を追加しました`);
+  });
+  $('#pickClose').addEventListener('click',()=>dlg.close());
+  $('#pickManual').addEventListener('click',()=>{ showForm(null); $('#f-name').value=$('#pickQ').value.trim(); $('#f-name').focus(); });
+  function showPane(form){ $('#pickPane').hidden=form; $('#siteForm').hidden=!form; }
   function openSite(id){
+    if(id) return showForm(id);
+    pick={q:'',c:'all',g:'all'}; $('#pickQ').value=''; renderPick(); showPane(false);
+    try{ if(!dlg.open) dlg.showModal(); }catch(e){ dlg.setAttribute('open',''); }
+    $('#pickQ').focus();
+  }
+  function showForm(id){
+    showPane(true);
     editing = id ? siteById(id) : null;
     $('#siteDialogTitle').textContent = editing ? 'サイトを編集' : 'サイトを追加';
     $('#f-name').value = editing?editing.name:'';
@@ -369,7 +453,7 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
     const r=[...document.querySelectorAll('input[name=color]')].find(x=>x.value===col) || document.querySelector('input[name=color]');
     r.checked=true;
     $('#siteDelete').style.visibility = editing?'visible':'hidden';
-    try{ dlg.showModal(); }catch(e){ dlg.setAttribute('open',''); }
+    try{ if(!dlg.open) dlg.showModal(); }catch(e){ dlg.setAttribute('open',''); }
     $('#f-name').focus();
   }
   $('#siteForm').addEventListener('submit',e=>{
@@ -390,11 +474,62 @@ footer{font-size:12px;color:var(--muted);border-top:1px solid var(--line);paddin
     state.sites=state.sites.filter(s=>s!==editing); save(); dlg.close(); renderAll(); toast('削除しました');
   });
 
-  $('#sites').addEventListener('click',e=>{
+  const grid=$('#sites');
+  let suppressClick=false;
+  grid.addEventListener('click',e=>{
+    if(suppressClick){ suppressClick=false; e.preventDefault(); e.stopPropagation(); return; }
     const b=e.target.closest('button'); if(!b) return;
     if(b.id==='addSite') return openSite(null);
     if(b.dataset.edit) return openSite(b.dataset.edit);
-    if(b.dataset.move){ const i=+b.dataset.move, j=i+(+b.dataset.dir); if(j<0||j>=state.sites.length) return; [state.sites[i],state.sites[j]]=[state.sites[j],state.sites[i]]; save(); renderAll(); }
+  },true);
+
+  // ドラッグで並べ替え（マウスはカードのどこでも、タッチは右上のつまみ）
+  let drag=null;
+  grid.addEventListener('pointerdown',e=>{
+    const card=e.target.closest('.site'); if(!card) return;
+    const onHandle=!!e.target.closest('.handle');
+    if(!onHandle){
+      if(e.pointerType!=='mouse'||e.button!==0) return;
+      if(e.target.closest('button,input,textarea,select')) return;
+    }
+    drag={card,x:e.clientX,y:e.clientY,active:false,pid:e.pointerId};
+  });
+  window.addEventListener('pointermove',e=>{
+    if(!drag||e.pointerId!==drag.pid) return;
+    if(!drag.active){
+      if(Math.hypot(e.clientX-drag.x,e.clientY-drag.y)<6) return;
+      drag.active=true; drag.card.classList.add('dragging'); document.body.classList.add('is-dragging');
+      const sel=window.getSelection&&window.getSelection(); if(sel) sel.removeAllRanges();
+    }
+    e.preventDefault();
+    const el=document.elementFromPoint(e.clientX,e.clientY); const over=el&&el.closest('.site');
+    if(over&&over!==drag.card){
+      const cards=[...grid.querySelectorAll('.site')];
+      if(cards.indexOf(drag.card)<cards.indexOf(over)) over.after(drag.card); else over.before(drag.card);
+    }
+  });
+  function endDrag(e){
+    if(!drag||(e&&e.pointerId!==drag.pid)) return;
+    const d=drag; drag=null;
+    if(!d.active) return;
+    d.card.classList.remove('dragging'); document.body.classList.remove('is-dragging');
+    const order=[...grid.querySelectorAll('.site')].map(c=>c.dataset.id);
+    state.sites.sort((a,b)=>order.indexOf(a.id)-order.indexOf(b.id));
+    save(); renderAll();
+    suppressClick=true; setTimeout(()=>{suppressClick=false;},0);
+  }
+  window.addEventListener('pointerup',endDrag);
+  window.addEventListener('pointercancel',endDrag);
+  grid.addEventListener('dragstart',e=>e.preventDefault());
+  // キーボード：つまみにフォーカスして矢印キーで移動
+  grid.addEventListener('keydown',e=>{
+    const hd=e.target.closest('.handle'); if(!hd) return;
+    const dir={ArrowLeft:-1,ArrowUp:-1,ArrowRight:1,ArrowDown:1}[e.key]; if(!dir) return;
+    e.preventDefault();
+    const id=hd.closest('.site').dataset.id; const i=state.sites.findIndex(s=>s.id===id); const j=i+dir;
+    if(j<0||j>=state.sites.length) return;
+    [state.sites[i],state.sites[j]]=[state.sites[j],state.sites[i]]; save(); renderAll();
+    const nh=grid.querySelector(`.site[data-id="${CSS.escape(id)}"] .handle`); if(nh) nh.focus();
   });
 
   // まとめて検索
